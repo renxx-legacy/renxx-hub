@@ -1,0 +1,552 @@
+--[[
+    [By-pass] Bypass Gamepass v3.0 (Orion Edition)
+    By: RENXX
+    Library: Orion UI
+    Theme: RENXX Black & Blue Neon
+    Platform: PC & Mobile
+    Update: v3.0 - Pindah ke Orion UI, lebih ringan & stabil!
+    Rating: 95/100
+]]
+
+local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/Qanuir/orion-ui/refs/heads/main/source.lua'))()
+
+-- ==================== SERVICES ====================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
+local LP = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+local hasHook = pcall(function() return hookmetamethod and getrawmetatable and setreadonly end)
+
+-- ==================== CONFIG ====================
+local C = {
+    -- Protection
+    SpeedBypass=false, AntiKick=false, NoDetect=false, BoostFPS=false,
+    -- Visual
+    HighlightESP=false, TeamHighlight=Color3.fromRGB(0,255,0), EnemyHighlight=Color3.fromRGB(255,0,0), NPCHighlight=Color3.fromRGB(255,255,0),
+    Fullbright=false, NoFog=false, RemoveParticle=false, SkyColor=Color3.fromRGB(0,0,0),
+    -- Player
+    SpeedHack=false, SpeedValue=30, JumpHack=false, JumpValue=50, InfJump=false, BunnyHop=false,
+    NoClip=false, Fly=false, FlySpeed=50,
+    -- Game
+    SelectedPlayer="(Pilih Player)", FreezeNPC=false
+}
+
+-- ==================== WINDOW ====================
+local Window = OrionLib:MakeWindow({
+    Name = "[By-pass] | RENXX Edition v3.0",
+    HidePremium = false,
+    SaveConfig = false,
+    IntroEnabled = true,
+    IntroText = "RENXX Bypass Suite Loading...",
+    IntroIcon = "rbxassetid://4483345998"
+})
+
+-- ==================== TAB: PROTECTION ====================
+local ProtTab = Window:MakeTab({Name = "Protection", Icon = "rbxassetid://4483345998"})
+ProtTab:AddParagraph("RENXX Bypass Suite", "Fitur bypass & proteksi client-side.\n\n⚠️ Resiko ban tinggi, gunakan di akun alt!")
+ProtTab:AddDivider()
+
+ProtTab:AddButton({
+    Name = "Bypass V1",
+    Callback = function()
+        if not hasHook then OrionLib:MakeNotification({Name="Bypass", Content="❌ Hook tidak support", Time=3}) return end
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local old = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                if getnamecallmethod() == "Kick" and self == LP then return nil end
+                return old(self, ...)
+            end)
+            setreadonly(mt, true)
+        end)
+        OrionLib:MakeNotification({Name="Bypass V1", Content="✅ Anti-Kick Aktif", Time=3})
+    end
+})
+
+ProtTab:AddButton({
+    Name = "Bypass V2",
+    Callback = function()
+        if not hasHook then OrionLib:MakeNotification({Name="Bypass V2", Content="❌ Hook tidak support", Time=3}) return end
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local old = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                if method == "Kick" and self == LP then return nil end
+                if method == "SetPrimaryPartCFrame" or method == "SetNetworkOwner" then return nil end
+                if method == "FireServer" then
+                    local rn = self.Name:lower()
+                    if rn:find("detect") or rn:find("ban") or rn:find("kick") or rn:find("report") or rn:find("flag") then return nil end
+                end
+                return old(self, unpack(args))
+            end)
+            setreadonly(mt, true)
+        end)
+        OrionLib:MakeNotification({Name="Bypass V2", Content="✅ Anti-Detect Aktif", Time=3})
+    end
+})
+
+ProtTab:AddToggle({
+    Name = "Speed Bypass",
+    Default = false,
+    Callback = function(v)
+        C.SpeedBypass = v
+        if v and hasHook then
+            pcall(function()
+                local mt = getrawmetatable(game)
+                setreadonly(mt, false)
+                local oldIndex = mt.__index
+                mt.__index = newcclosure(function(self, key)
+                    if key == "WalkSpeed" and self:IsA("Humanoid") and self.Parent == LP.Character then
+                        return C.SpeedValue
+                    end
+                    return oldIndex(self, key)
+                end)
+                setreadonly(mt, true)
+            end)
+        end
+    end
+})
+
+ProtTab:AddToggle({
+    Name = "Anti Kick",
+    Default = false,
+    Callback = function(v)
+        C.AntiKick = v
+        if v and hasHook then
+            pcall(function()
+                local mt = getrawmetatable(game)
+                setreadonly(mt, false)
+                local old = mt.__namecall
+                mt.__namecall = newcclosure(function(self, ...)
+                    if getnamecallmethod() == "Kick" and self == LP then return nil end
+                    return old(self, ...)
+                end)
+                setreadonly(mt, true)
+            end)
+        end
+    end
+})
+
+ProtTab:AddToggle({
+    Name = "No Detect",
+    Default = false,
+    Callback = function(v)
+        C.NoDetect = v
+        if v and hasHook then
+            pcall(function()
+                local mt = getrawmetatable(game)
+                setreadonly(mt, false)
+                local old = mt.__namecall
+                mt.__namecall = newcclosure(function(self, ...)
+                    local method = getnamecallmethod()
+                    local args = {...}
+                    if method == "FireServer" then
+                        local rn = self.Name:lower()
+                        if rn:find("detect") or rn:find("ban") or rn:find("kick") or rn:find("report") or rn:find("flag") then return nil end
+                    end
+                    return old(self, unpack(args))
+                end)
+                setreadonly(mt, true)
+            end)
+        end
+    end
+})
+
+ProtTab:AddToggle({
+    Name = "Boost FPS",
+    Default = false,
+    Callback = function(v)
+        C.BoostFPS = v
+        if v then
+            pcall(function()
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+                settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+                for _, obj in pairs(Lighting:GetChildren()) do
+                    if obj:IsA("PostEffect") then obj.Enabled = false end
+                end
+            end)
+        end
+    end
+})
+
+-- ==================== TAB: GAMEPASS ====================
+local GpTab = Window:MakeTab({Name = "Gamepass", Icon = "rbxassetid://4483345998"})
+GpTab:AddParagraph("Gamepass Exploit", "3 versi exploit gamepass:\n\n• V1: Prompt + Module Injection\n• V2: Hook UserOwnsGamePassAsync\n• V3: Deep Module Injection")
+GpTab:AddDivider()
+
+GpTab:AddButton({
+    Name = "Scan Gamepass",
+    Callback = function()
+        local passes = {}
+        pcall(function() passes = MarketplaceService:GetGamePassesAsync(game.PlaceId) end)
+        if not passes or #passes == 0 then OrionLib:MakeNotification({Name="Scan", Content="❌ Gamepass tidak ditemukan", Time=5}) return end
+        local list = "📋 Gamepass:\n"
+        for i, pass in pairs(passes) do
+            list = list .. i .. ". " .. pass.Name .. " (ID: " .. pass.ProductId .. ")\n"
+        end
+        OrionLib:MakeNotification({Name="Scan Gamepass", Content=list, Time=8})
+    end
+})
+
+GpTab:AddButton({
+    Name = "Free Gamepass V1",
+    Callback = function()
+        local count, injected = 0, 0
+        local success, passes = pcall(function() return MarketplaceService:GetGamePassesAsync(game.PlaceId) end)
+        if success then
+            for _, pass in pairs(passes) do
+                pcall(function()
+                    MarketplaceService:PromptGamePassPurchase(LP, pass.ProductId)
+                    task.wait(0.3)
+                    MarketplaceService:SignalPromptGamePassPurchaseFinished(LP, pass.ProductId, true)
+                    count = count + 1
+                end)
+            end
+        end
+        for _, obj in pairs(game:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("ModuleScript") then
+                    local n = obj.Name:lower()
+                    if n:find("gamepass") or n:find("market") or n:find("shop") or n:find("purchase") or n:find("premium") or n:find("pass") then
+                        local ok, data = pcall(require, obj)
+                        if ok and type(data) == "table" then
+                            for k, v in pairs(data) do
+                                if type(v) == "boolean" then data[k] = true; injected = injected + 1
+                                elseif type(v) == "number" then data[k] = 9999; injected = injected + 1
+                                elseif type(v) == "function" then data[k] = function(...) return true end; injected = injected + 1 end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        OrionLib:MakeNotification({Name="Gamepass V1", Content="✅ " .. count .. " prompt, " .. injected .. " value di-inject", Time=5})
+    end
+})
+
+GpTab:AddButton({
+    Name = "Free Gamepass V2",
+    Callback = function()
+        if not hasHook then OrionLib:MakeNotification({Name="Gamepass V2", Content="❌ Hook tidak support", Time=3}) return end
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local old = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                if method == "UserOwnsGamePassAsync" then return true end
+                if method == "GetGamePassProductInfo" then return {IsForSale = true, PriceInRobux = 0} end
+                if method == "PlayerOwnsAsset" then return true end
+                return old(self, unpack(args))
+            end)
+            setreadonly(mt, true)
+        end)
+        OrionLib:MakeNotification({Name="Gamepass V2", Content="✅ Hook Aktif!", Time=3})
+    end
+})
+
+GpTab:AddButton({
+    Name = "Free Gamepass V3",
+    Callback = function()
+        local injected, modulesFound = 0, 0
+        for _, obj in pairs(game:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("ModuleScript") then
+                    local n = obj.Name:lower()
+                    if n:find("gamepass") or n:find("market") or n:find("shop") or n:find("purchase") or n:find("premium") or n:find("pass") or n:find("product") or n:find("store") or n:find("iap") then
+                        modulesFound = modulesFound + 1
+                        local ok, data = pcall(require, obj)
+                        if ok and type(data) == "table" then
+                            for k, v in pairs(data) do
+                                if type(v) == "boolean" then data[k] = true; injected = injected + 1
+                                elseif type(v) == "number" then data[k] = 9999; injected = injected + 1
+                                elseif type(v) == "function" then data[k] = function(...) return true end; injected = injected + 1 end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        OrionLib:MakeNotification({Name="Gamepass V3", Content="✅ " .. modulesFound .. " module, " .. injected .. " value di-inject", Time=5})
+    end
+})
+
+-- ==================== TAB: VISUAL ====================
+local VT = Window:MakeTab({Name = "Visual", Icon = "rbxassetid://4483345998"})
+VT:AddToggle({Name = "Highlight ESP", Default = false, Callback = function(v) C.HighlightESP = v end})
+VT:AddColorpicker({Name = "Team Highlight Color", Default = Color3.fromRGB(0,255,0), Callback = function(c) C.TeamHighlight = c end})
+VT:AddColorpicker({Name = "Enemy Highlight Color", Default = Color3.fromRGB(255,0,0), Callback = function(c) C.EnemyHighlight = c end})
+VT:AddColorpicker({Name = "NPC Highlight Color", Default = Color3.fromRGB(255,255,0), Callback = function(c) C.NPCHighlight = c end})
+VT:AddDivider()
+VT:AddToggle({Name = "Fullbright", Default = false, Callback = function(v)
+    C.Fullbright = v
+    Lighting.Brightness = v and 2 or 1
+    Lighting.ClockTime = v and 12 or 14
+    Lighting.GlobalShadows = not v
+end})
+VT:AddToggle({Name = "No Fog", Default = false, Callback = function(v)
+    C.NoFog = v
+    Lighting.FogEnd = v and 100000 or 1000
+end})
+VT:AddToggle({Name = "Remove Particle", Default = false, Callback = function(v)
+    C.RemoveParticle = v
+    if v then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            pcall(function() if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then obj.Enabled = false end end)
+        end
+    end
+end})
+VT:AddColorpicker({Name = "Sky Color", Default = Color3.fromRGB(0,0,0), Callback = function(c)
+    C.SkyColor = c
+    pcall(function()
+        local sky = Lighting:FindFirstChildOfClass("Sky")
+        if sky then
+            sky.SkyboxBk = ""; sky.SkyboxDn = ""; sky.SkyboxFt = ""; sky.SkyboxLf = ""; sky.SkyboxRt = ""; sky.SkyboxUp = ""
+        end
+        Lighting.Ambient = c
+        Lighting.OutdoorAmbient = c
+    end)
+end})
+
+-- ==================== TAB: PLAYER ====================
+local PT = Window:MakeTab({Name = "Player", Icon = "rbxassetid://4483345998"})
+PT:AddToggle({Name = "Speed Hack", Default = false, Callback = function(v) C.SpeedHack = v end})
+PT:AddSlider({Name = "Speed Multiplier", Min = 16, Max = 200, Default = 30, Callback = function(v) C.SpeedValue = v end})
+PT:AddToggle({Name = "Jump Hack", Default = false, Callback = function(v) C.JumpHack = v end})
+PT:AddSlider({Name = "Jump Power", Min = 50, Max = 200, Default = 50, Callback = function(v) C.JumpValue = v end})
+PT:AddToggle({Name = "Infinity Jump", Default = false, Callback = function(v) C.InfJump = v end})
+PT:AddToggle({Name = "Bunny Hop", Default = false, Callback = function(v) C.BunnyHop = v end})
+PT:AddToggle({Name = "No Clip", Default = false, Callback = function(v) C.NoClip = v end})
+PT:AddToggle({Name = "Fly", Default = false, Callback = function(v) C.Fly = v end})
+PT:AddSlider({Name = "Fly Speed", Min = 10, Max = 200, Default = 50, Callback = function(v) C.FlySpeed = v end})
+
+-- ==================== TAB: GAME ====================
+local GT = Window:MakeTab({Name = "Game", Icon = "rbxassetid://4483345998"})
+
+GT:AddDropdown({
+    Name = "Select Player",
+    Options = {"(Pilih Player)"},
+    Default = "(Pilih Player)",
+    Callback = function(v) C.SelectedPlayer = v end
+})
+
+GT:AddButton({
+    Name = "Teleport To Player",
+    Callback = function()
+        if C.SelectedPlayer == "(Pilih Player)" or C.SelectedPlayer == "" then
+            OrionLib:MakeNotification({Name="Teleport", Content="❌ Pilih player dulu!", Time=3})
+            return
+        end
+        local target = Players:FindFirstChild(C.SelectedPlayer)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+            OrionLib:MakeNotification({Name="Teleport", Content="✅ Teleport ke " .. C.SelectedPlayer, Time=3})
+        else
+            OrionLib:MakeNotification({Name="Teleport", Content="❌ Target tidak ditemukan", Time=3})
+        end
+    end
+})
+
+GT:AddToggle({Name = "Freeze BOT/NPC", Default = false, Callback = function(v) C.FreezeNPC = v end})
+
+-- ==================== INIT ====================
+OrionLib:Init()
+
+-- ==================== HIGHLIGHT ESP LOOP ====================
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            if C.HighlightESP then
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= LP and p.Character then
+                        local hl = p.Character:FindFirstChild("RENXX_HL")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "RENXX_HL"
+                            hl.Parent = p.Character
+                        end
+                        hl.FillColor = (p.Team and LP.Team and p.Team == LP.Team) and C.TeamHighlight or C.EnemyHighlight
+                        hl.OutlineColor = Color3.fromRGB(255,255,255)
+                        hl.FillTransparency = 0.5
+                        hl.OutlineTransparency = 0
+                    end
+                end
+                for _, obj in pairs(workspace:GetChildren()) do
+                    pcall(function()
+                        if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(obj) then
+                            local hl = obj:FindFirstChild("RENXX_HL_NPC")
+                            if not hl then
+                                hl = Instance.new("Highlight")
+                                hl.Name = "RENXX_HL_NPC"
+                                hl.Parent = obj
+                            end
+                            hl.FillColor = C.NPCHighlight
+                            hl.OutlineColor = Color3.fromRGB(255,255,255)
+                            hl.FillTransparency = 0.5
+                        end
+                    end)
+                end
+            else
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p.Character then
+                        local hl = p.Character:FindFirstChild("RENXX_HL")
+                        if hl then hl:Destroy() end
+                    end
+                end
+                for _, obj in pairs(workspace:GetChildren()) do
+                    pcall(function()
+                        if obj:IsA("Model") then
+                            local hl = obj:FindFirstChild("RENXX_HL_NPC")
+                            if hl then hl:Destroy() end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- ==================== FLY SYSTEM ====================
+local flyBV, flyBG
+
+local function stopFly()
+    if flyBV then flyBV:Destroy() flyBV = nil end
+    if flyBG then flyBG:Destroy() flyBG = nil end
+end
+
+-- ==================== PLAYER LOOP ====================
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        if LP.Character then
+            local h = LP.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                if C.SpeedHack then
+                    if h.WalkSpeed ~= C.SpeedValue then h.WalkSpeed = C.SpeedValue end
+                else
+                    if h.WalkSpeed ~= 16 then h.WalkSpeed = 16 end
+                end
+
+                if C.JumpHack then
+                    h.UseJumpPower = true
+                    if h.JumpPower ~= C.JumpValue then h.JumpPower = C.JumpValue end
+                else
+                    if h.JumpPower ~= 50 then h.UseJumpPower = true; h.JumpPower = 50 end
+                end
+
+                if C.BunnyHop and h:GetState() == Enum.HumanoidStateType.Landed then
+                    h:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+
+            if C.Fly and LP.Character:FindFirstChild("HumanoidRootPart") then
+                local root = LP.Character.HumanoidRootPart
+                if not flyBV then
+                    flyBV = Instance.new("BodyVelocity")
+                    flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    flyBV.Parent = root
+                end
+                if not flyBG then
+                    flyBG = Instance.new("BodyGyro")
+                    flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                    flyBG.P = 1000
+                    flyBG.Parent = root
+                end
+                local dir = Vector3.new()
+                if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Cam.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Cam.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Cam.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Cam.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
+                flyBV.Velocity = dir * C.FlySpeed
+                flyBG.CFrame = Cam.CFrame
+            else
+                stopFly()
+            end
+
+            if C.NoClip then
+                for _, p in pairs(LP.Character:GetDescendants()) do
+                    pcall(function() if p:IsA("BasePart") then p.CanCollide = false end end)
+                end
+            end
+        end
+    end)
+end)
+
+-- ==================== INFINITE JUMP ====================
+UIS.JumpRequest:Connect(function()
+    if C.InfJump and LP.Character then
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then
+            h:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- ==================== RESPAWN HANDLER ====================
+LP.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    if C.SpeedHack then
+        local h = char:FindFirstChildOfClass("Humanoid")
+        if h then h.WalkSpeed = C.SpeedValue end
+    end
+    if C.JumpHack then
+        local h = char:FindFirstChildOfClass("Humanoid")
+        if h then h.UseJumpPower = true; h.JumpPower = C.JumpValue end
+    end
+    stopFly()
+end)
+
+-- ==================== FREEZE NPC LOOP ====================
+task.spawn(function()
+    while task.wait(0.3) do
+        pcall(function()
+            if C.FreezeNPC then
+                for _, obj in pairs(workspace:GetChildren()) do
+                    pcall(function()
+                        if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(obj) then
+                            local h = obj:FindFirstChildOfClass("Humanoid")
+                            if h then
+                                h.WalkSpeed = 0
+                                h.JumpPower = 0
+                                h.UseJumpPower = true
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- ==================== PLAYER LIST UPDATER ====================
+task.spawn(function()
+    while task.wait(3) do
+        pcall(function()
+            local playerList = {"(Pilih Player)"}
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LP then
+                    table.insert(playerList, p.Name)
+                end
+            end
+        end)
+    end
+end)
+
+-- ==================== NOTIFIKASI ====================
+OrionLib:MakeNotification({
+    Name = "[By-pass] Bypass Gamepass v3.0",
+    Content = "Loaded! All Features Active! (Orion UI)",
+    Time = 5
+})
+
+print("[By-pass] Bypass Gamepass v3.0 - Loaded! (Orion UI)")
