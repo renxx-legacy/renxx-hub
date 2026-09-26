@@ -1,0 +1,724 @@
+--[[
+    [By-pass] Bypass Gamepass V5.3
+    By: DEEP & RENXX
+    Library: Kavo UI
+    Theme: Dark Blue Neon
+    Platform: PC & Mobile
+    Update: FIXED ALL TOGGLE FEATURES!
+]]
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+
+-- ==================== SERVICES ====================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
+local TeleportService = game:GetService("TeleportService")
+local RS = game:GetService("ReplicatedStorage")
+local LP = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+local VU = game:GetService("VirtualUser")
+
+-- ==================== CONFIG ====================
+local C = {
+    Bypass=false, BypassV2=false, SpeedBypass=false,
+    AntiBan=false, AntiDetect=false, AntiKick=false, AntiAFK=true,
+    BoostFPS=false, FPSValue=60, ShowFPS=false, LowPing=false,
+    HighlightESP=false, TeamColor=Color3.fromRGB(0,255,0), EnemyColor=Color3.fromRGB(255,0,0), BotColor=Color3.fromRGB(255,255,0),
+    Fullbright=false, NoFog=false, RemoveParticle=false,
+    GodMode=false, SpeedHack=false, SpeedValue=50, JumpHack=false, JumpValue=50,
+    InfJump=false, BunnyHop=false, NoClip=false, Fly=false, FlySpeed=50,
+    SelectedPlayer=nil, FreezeBot=false,
+}
+
+-- ==================== MODULE HOOK SYSTEM ====================
+local hookedModules = {}
+local hookedRemotes = {}
+local hookedValues = {}
+
+local function HookAll()
+    for _, obj in pairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("ModuleScript") then
+                local n = obj.Name:lower()
+                if n:find("gamepass") or n:find("bypass") or n:find("market")
+                   or n:find("purchase") or n:find("premium") or n:find("vip")
+                   or n:find("owned") or n:find("setting") or n:find("config")
+                   or n:find("ban") or n:find("detect") or n:find("anti")
+                   or n:find("player") or n:find("weapon") or n:find("gun") then
+                    local ok, data = pcall(require, obj)
+                    if ok and type(data) == "table" then
+                        hookedModules[obj] = data
+                    end
+                end
+            end
+        end)
+    end
+
+    for _, obj in pairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                local n = obj.Name:lower()
+                if n:find("gamepass") or n:find("purchase") or n:find("buy")
+                   or n:find("premium") or n:find("vip") or n:find("owned")
+                   or n:find("check") or n:find("detect") or n:find("ban")
+                   or n:find("kick") or n:find("report") then
+                    hookedRemotes[obj] = obj
+                end
+            end
+        end)
+    end
+
+    for _, obj in pairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("NumberValue") or obj:IsA("IntValue") or obj:IsA("BoolValue") or obj:IsA("StringValue") then
+                local n = obj.Name:lower()
+                if n:find("gamepass") or n:find("owned") or n:find("premium")
+                   or n:find("vip") or n:find("pass") or n:find("ban")
+                   or n:find("detect") or n:find("flag") or n:find("warn") then
+                    hookedValues[obj] = obj
+                end
+            end
+        end)
+    end
+end
+
+task.spawn(function()
+    task.wait(2)
+    HookAll()
+    print("[RENXX] Hooked: " .. #hookedModules .. " modules, " .. #hookedRemotes .. " remotes, " .. #hookedValues .. " values")
+end)
+
+-- ==================== KAVO UI ====================
+local Window = Library.CreateLib("[By-pass] V5.3 | Fixed", "DarkTheme")
+
+local ProtectionTab = Window:NewTab("Protection")
+local GamepassTab = Window:NewTab("Gamepass")
+local VisualTab = Window:NewTab("Visual")
+local PlayerTab = Window:NewTab("Player")
+local GameTab = Window:NewTab("Game")
+
+local ProtSection = ProtectionTab:NewSection("Bypass & Protection")
+local GpSection = GamepassTab:NewSection("Gamepass Exploit")
+local VisSection = VisualTab:NewSection("ESP & Lighting")
+local PlySection = PlayerTab:NewSection("Player Hacks")
+local GameSection = GameTab:NewSection("Game Actions")
+
+-- ==================== [1] PROTECTION ====================
+ProtSection:NewButton("Bypass (Anti-Kick)", "Hook Kick method", function()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local old = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            if getnamecallmethod() == "Kick" and self == LP then return nil end
+            return old(self, ...)
+        end)
+        setreadonly(mt, true)
+    end)
+end)
+
+ProtSection:NewButton("Bypass V2 (Anti-Detect)", "Hook remote deteksi", function()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local old = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            if method == "Kick" and self == LP then return nil end
+            if method == "SetPrimaryPartCFrame" or method == "SetNetworkOwner" then return nil end
+            if method == "FireServer" then
+                local rn = self.Name:lower()
+                if rn:find("detect") or rn:find("ban") or rn:find("kick") or rn:find("report") then return nil end
+            end
+            return old(self, unpack(args))
+        end)
+        setreadonly(mt, true)
+    end)
+end)
+
+ProtSection:NewButton("Speed Bypass", "Hook WalkSpeed limit", function()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local oldIdx = mt.__index
+        mt.__index = newcclosure(function(self, key)
+            if key == "WalkSpeed" and self:IsA("Humanoid") then
+                return C.SpeedValue
+            end
+            return oldIdx(self, key)
+        end)
+        setreadonly(mt, true)
+    end)
+end)
+
+ProtSection:NewToggle("Anti Ban", "Blokir fungsi ban + hook module ban", function(v)
+    C.AntiBan = v
+    if v then
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local oldNC = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "Kick" and self == LP then return nil end
+                if method == "Ban" and self == LP then return nil end
+                return oldNC(self, ...)
+            end)
+            setreadonly(mt, true)
+        end)
+        for mod, data in pairs(hookedModules) do
+            pcall(function()
+                for k, val in pairs(data) do
+                    local kn = tostring(k):lower()
+                    if kn:find("ban") or kn:find("punish") or kn:find("blacklist") then
+                        if type(val) == "boolean" then data[k] = false end
+                        if type(val) == "function" then data[k] = function(...) return false end end
+                        if type(val) == "number" then data[k] = 0 end
+                    end
+                end
+            end)
+        end
+        for valObj in pairs(hookedValues) do
+            pcall(function()
+                if valObj.Name:lower():find("ban") then
+                    if valObj:IsA("BoolValue") then valObj.Value = false end
+                    if valObj:IsA("NumberValue") or valObj:IsA("IntValue") then valObj.Value = 0 end
+                end
+            end)
+        end
+    end
+end)
+
+ProtSection:NewToggle("Anti Detect", "Blokir deteksi + hook module detect", function(v)
+    C.AntiDetect = v
+    if v then
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local oldNC = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                if method == "FireServer" then
+                    local rn = self.Name:lower()
+                    if rn:find("detect") or rn:find("flag") or rn:find("warn") or rn:find("report") then return nil end
+                end
+                if method == "InvokeServer" then
+                    local rn = self.Name:lower()
+                    if rn:find("detect") or rn:find("flag") or rn:find("check") then return true end
+                end
+                return oldNC(self, unpack(args))
+            end)
+            setreadonly(mt, true)
+        end)
+        for mod, data in pairs(hookedModules) do
+            pcall(function()
+                for k, val in pairs(data) do
+                    local kn = tostring(k):lower()
+                    if kn:find("detect") or kn:find("flag") or kn:find("sus") then
+                        if type(val) == "boolean" then data[k] = false end
+                        if type(val) == "function" then data[k] = function(...) return false end end
+                        if type(val) == "number" then data[k] = 0 end
+                    end
+                end
+            end)
+        end
+        if LP.Character then
+            for _, p in pairs(LP.Character:GetDescendants()) do
+                pcall(function()
+                    if p:IsA("BasePart") then
+                        p.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+ProtSection:NewToggle("Anti Kick", "Blokir kick", function(v)
+    C.AntiKick = v
+    if v then
+        pcall(function()
+            local mt = getrawmetatable(game)
+            setreadonly(mt, false)
+            local old = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                if getnamecallmethod() == "Kick" and self == LP then return nil end
+                return old(self, ...)
+            end)
+            setreadonly(mt, true)
+        end)
+    end
+end)
+
+ProtSection:NewToggle("Anti AFK", "Anti AFK otomatis", function(v)
+    C.AntiAFK = v
+    if v then
+        task.spawn(function()
+            while C.AntiAFK do
+                task.wait(60)
+                if C.AntiAFK then
+                    VU:CaptureController()
+                    VU:ClickButton2(Vector2.new())
+                end
+            end
+        end)
+    end
+end)
+
+ProtSection:NewToggle("Boost FPS", "Hilangkan particle", function(v)
+    C.BoostFPS = v
+    if v then
+        task.spawn(function()
+            while C.BoostFPS do
+                task.wait(2)
+                for _, obj in pairs(game:GetDescendants()) do
+                    pcall(function()
+                        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                            obj.Enabled = false
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+ProtSection:NewDropdown("Set FPS", "Atur FPS target", {"30","60","90","120"}, function(option)
+    C.FPSValue = tonumber(option)
+    pcall(function() setfpscap(C.FPSValue) end)
+end)
+
+ProtSection:NewToggle("Show FPS", "Tampilkan FPS", function(v)
+    C.ShowFPS = v
+    if v then
+        local fpsGui = Instance.new("ScreenGui", game.CoreGui)
+        fpsGui.Name = "RENXX_FPS"
+        local fpsLabel = Instance.new("TextLabel", fpsGui)
+        fpsLabel.Size = UDim2.new(0, 120, 0, 30)
+        fpsLabel.Position = UDim2.new(0, 10, 0, 10)
+        fpsLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        fpsLabel.BackgroundTransparency = 0.5
+        fpsLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
+        fpsLabel.Text = "FPS: 60"
+        fpsLabel.Font = Enum.Font.GothamBold
+        fpsLabel.TextSize = 14
+        task.spawn(function()
+            while C.ShowFPS do
+                task.wait(0.5)
+                local fps = math.floor(1 / RunService.RenderStepped:Wait())
+                fpsLabel.Text = "FPS: " .. fps
+            end
+            fpsGui:Destroy()
+        end)
+    end
+end)
+
+ProtSection:NewToggle("Low Ping", "Turunkan ping", function(v)
+    C.LowPing = v
+    if v then
+        pcall(function() settings().Network.IncomingReplicationLag = -1 end)
+    else
+        pcall(function() settings().Network.IncomingReplicationLag = 0 end)
+    end
+end)
+
+-- ==================== [2] GAMEPASS ====================
+GpSection:NewButton("Get All Item", "Ambil semua item", function()
+    for _, obj in pairs(game:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("Tool") then
+                local tool = obj:Clone()
+                tool.Parent = LP.Backpack
+            end
+        end)
+    end
+end)
+
+GpSection:NewButton("Free Purchase", "Hook ProcessReceipt + PromptProductPurchase", function()
+    local success, products = pcall(function()
+        return MarketplaceService:GetDeveloperProductsAsync(game.PlaceId)
+    end)
+    if success then
+        for _, product in pairs(products) do
+            pcall(function()
+                MarketplaceService:PromptProductPurchase(LP, product.ProductId)
+                task.wait(0.2)
+                MarketplaceService:SignalPromptProductPurchaseFinished(LP.UserId, product.ProductId, true)
+            end)
+        end
+    end
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local oldNC = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "PromptProductPurchase" then return true end
+            if method == "ProcessReceipt" then return Enum.ProductPurchaseDecision.PurchaseGranted end
+            if method == "PromptGamePassPurchase" then return true end
+            return oldNC(self, ...)
+        end)
+        setreadonly(mt, true)
+    end)
+    for mod, data in pairs(hookedModules) do
+        pcall(function()
+            for k, v in pairs(data) do
+                local kn = tostring(k):lower()
+                if kn:find("purchase") or kn:find("buy") or kn:find("receipt") then
+                    if type(v) == "function" then data[k] = function(...) return true end end
+                    if type(v) == "boolean" then data[k] = true end
+                end
+            end
+        end)
+    end
+end)
+
+GpSection:NewButton("Free Purchase V2", "Hook PromptProductPurchase only", function()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local oldNC = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "PromptProductPurchase" then return true end
+            if method == "PromptGamePassPurchase" then return true end
+            return oldNC(self, ...)
+        end)
+        setreadonly(mt, true)
+    end)
+end)
+
+GpSection:NewButton("Free Gamepass", "Prompt + Module Injection", function()
+    local success, passes = pcall(function() return MarketplaceService:GetGamePassesAsync(game.PlaceId) end)
+    if success then
+        for _, pass in pairs(passes) do
+            pcall(function()
+                MarketplaceService:PromptGamePassPurchase(LP, pass.ProductId)
+                task.wait(0.3)
+                MarketplaceService:SignalPromptGamePassPurchaseFinished(LP, pass.ProductId, true)
+            end)
+        end
+    end
+    for mod, data in pairs(hookedModules) do
+        pcall(function()
+            for k, v in pairs(data) do
+                local kn = tostring(k):lower()
+                if kn:find("gamepass") or kn:find("owned") or kn:find("premium") then
+                    if type(v) == "boolean" then data[k] = true end
+                    if type(v) == "number" then data[k] = 1 end
+                    if type(v) == "function" then data[k] = function(...) return true end end
+                end
+            end
+        end)
+    end
+end)
+
+GpSection:NewButton("Free Gamepass V2", "Hook UserOwnsGamePassAsync", function()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        local old = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            if method == "UserOwnsGamePassAsync" then return true end
+            if method == "GetGamePassProductInfo" then return {IsForSale = true, PriceInRobux = 0} end
+            if method == "PlayerOwnsAsset" then return true end
+            return old(self, unpack(args))
+        end)
+        setreadonly(mt, true)
+    end)
+end)
+
+GpSection:NewButton("Free Gamepass V3", "Deep Module Injection", function()
+    for mod, data in pairs(hookedModules) do
+        pcall(function()
+            for k, v in pairs(data) do
+                local kn = tostring(k):lower()
+                if kn:find("gamepass") or kn:find("owned") or kn:find("premium") or kn:find("vip") then
+                    if type(v) == "boolean" then data[k] = true end
+                    if type(v) == "number" then data[k] = 1 end
+                    if type(v) == "string" then data[k] = "owned" end
+                    if type(v) == "function" then data[k] = function(...) return true end end
+                end
+            end
+        end)
+    end
+    for valObj in pairs(hookedValues) do
+        pcall(function()
+            if valObj.Name:lower():find("gamepass") or valObj.Name:lower():find("owned") then
+                if valObj:IsA("BoolValue") then valObj.Value = true end
+                if valObj:IsA("NumberValue") or valObj:IsA("IntValue") then valObj.Value = 9999 end
+            end
+        end)
+    end
+end)
+
+-- ==================== [3] VISUAL ====================
+VisSection:NewToggle("ESP Highlight", "Aktifkan highlight", function(v)
+    C.HighlightESP = v
+    if not v then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("RENXX_HL") then
+                p.Character.RENXX_HL:Destroy()
+            end
+        end
+        for _, obj in pairs(workspace:GetChildren()) do
+            pcall(function()
+                if obj:IsA("Model") and obj:FindFirstChild("RENXX_BOT_HL") then
+                    obj.RENXX_BOT_HL:Destroy()
+                end
+            end)
+        end
+    end
+end)
+
+VisSection:NewColorPicker("Team Highlight Color", "Warna tim", Color3.fromRGB(0,255,0), function(c) C.TeamColor = c end)
+VisSection:NewColorPicker("Enemy Highlight Color", "Warna musuh", Color3.fromRGB(255,0,0), function(c) C.EnemyColor = c end)
+VisSection:NewColorPicker("BOT/NPC Highlight Color", "Warna BOT/NPC", Color3.fromRGB(255,255,0), function(c) C.BotColor = c end)
+
+VisSection:NewToggle("Fullbright", "Terangin ruangan", function(v)
+    C.Fullbright = v
+    if v then
+        task.spawn(function()
+            while C.Fullbright do
+                task.wait(1)
+                Lighting.Brightness = 2
+                Lighting.ClockTime = 12
+                Lighting.GlobalShadows = false
+            end
+        end)
+    else
+        Lighting.Brightness = 1
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = true
+    end
+end)
+
+VisSection:NewToggle("No FOG", "Hilangkan kabut", function(v)
+    C.NoFog = v
+    if v then
+        task.spawn(function()
+            while C.NoFog do
+                task.wait(1)
+                Lighting.FogEnd = 100000
+            end
+        end)
+    else
+        Lighting.FogEnd = 1000
+    end
+end)
+
+VisSection:NewToggle("Remove Particle", "Hilangkan particle", function(v)
+    C.RemoveParticle = v
+    if v then
+        task.spawn(function()
+            while C.RemoveParticle do
+                task.wait(2)
+                for _, obj in pairs(game:GetDescendants()) do
+                    pcall(function()
+                        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                            obj.Enabled = false
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- ==================== [4] PLAYER ====================
+PlySection:NewToggle("God Mode", "Kebal damage", function(v)
+    C.GodMode = v
+    if v then
+        task.spawn(function()
+            while C.GodMode do
+                task.wait(0.1)
+                if LP.Character then
+                    local h = LP.Character:FindFirstChildOfClass("Humanoid")
+                    if h then
+                        h.MaxHealth = math.huge
+                        h.Health = math.huge
+                    end
+                end
+            end
+        end)
+        for mod, data in pairs(hookedModules) do
+            pcall(function()
+                for k, val in pairs(data) do
+                    local kn = tostring(k):lower()
+                    if kn:find("damage") or kn:find("health") or kn:find("hurt") then
+                        if type(val) == "number" then data[k] = 0 end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+PlySection:NewToggle("Speed Hack", "Jalan lebih cepat", function(v)
+    C.SpeedHack = v
+    if not v then
+        if LP.Character then
+            local h = LP.Character:FindFirstChildOfClass("Humanoid")
+            if h then h.WalkSpeed = 16 end
+        end
+    end
+end)
+
+PlySection:NewSlider("SET Speed", "Atur kecepatan", 100, 0, function(v) C.SpeedValue = v end)
+
+PlySection:NewToggle("Jump Hack", "Lompat lebih tinggi", function(v)
+    C.JumpHack = v
+    if not v then
+        if LP.Character then
+            local h = LP.Character:FindFirstChildOfClass("Humanoid")
+            if h then h.UseJumpPower = true; h.JumpPower = 50 end
+        end
+    end
+end)
+
+PlySection:NewSlider("SET Jump", "Atur tinggi lompatan", 100, 0, function(v) C.JumpValue = v end)
+PlySection:NewToggle("Infinity Jump", "Lompat terus-terusan", function(v) C.InfJump = v end)
+PlySection:NewToggle("Bunny Hop", "Auto lompat", function(v) C.BunnyHop = v end)
+
+PlySection:NewToggle("No Clip", "Tembus dinding", function(v)
+    C.NoClip = v
+    if v then
+        task.spawn(function()
+            while C.NoClip do
+                task.wait(0.1)
+                if LP.Character then
+                    for _, p in pairs(LP.Character:GetDescendants()) do
+                        pcall(function() if p:IsA("BasePart") then p.CanCollide = false end end)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+PlySection:NewToggle("Fly", "Terbang", function(v) C.Fly = v end)
+PlySection:NewSlider("Fly Speed", "Atur kecepatan fly", 100, 0, function(v) C.FlySpeed = v end)
+
+PlySection:NewButton("Reset Character", "Reset karakter", function()
+    if LP.Character then
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then h.Health = 0 end
+    end
+end)
+
+-- ==================== [5] GAME ====================
+GameSection:NewTextBox("Select Player", "Nama player", function(txt) C.SelectedPlayer = txt end)
+GameSection:NewButton("Teleport To Player", "Teleport ke player", function()
+    if C.SelectedPlayer then
+        local target = Players:FindFirstChild(C.SelectedPlayer)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and LP.Character then
+            LP.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+        end
+    end
+end)
+GameSection:NewToggle("Freeze BOT/NPC", "Bekukan BOT/NPC", function(v) C.FreezeBot = v end)
+GameSection:NewButton("Rejoin Server", "Keluar masuk lagi", function()
+    TeleportService:Teleport(game.PlaceId, LP)
+end)
+
+-- ==================== HIGHLIGHT ESP LOOP ====================
+task.spawn(function()
+    while task.wait(0.5) do
+        if C.HighlightESP then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LP and p.Character then
+                    local hl = p.Character:FindFirstChild("RENXX_HL")
+                    if not hl then
+                        hl = Instance.new("Highlight")
+                        hl.Name = "RENXX_HL"
+                        hl.Parent = p.Character
+                    end
+                    local sameTeam = p.Team and LP.Team and p.Team == LP.Team
+                    hl.FillColor = sameTeam and C.TeamColor or C.EnemyColor
+                    hl.OutlineColor = Color3.fromRGB(255,255,255)
+                end
+            end
+            for _, obj in pairs(workspace:GetChildren()) do
+                pcall(function()
+                    if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(obj) then
+                        local hl = obj:FindFirstChild("RENXX_BOT_HL")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "RENXX_BOT_HL"
+                            hl.Parent = obj
+                        end
+                        hl.FillColor = C.BotColor
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- ==================== PLAYER LOOP ====================
+RunService.Heartbeat:Connect(function()
+    if LP.Character then
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then
+            if C.SpeedHack then h.WalkSpeed = C.SpeedValue end
+            if C.JumpHack then h.UseJumpPower = true; h.JumpPower = C.JumpValue end
+            if C.BunnyHop and h:GetState() == Enum.HumanoidStateType.Landed then
+                h:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+            if C.Fly then
+                local root = LP.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local dir = Vector3.new()
+                    if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Cam.CFrame.LookVector end
+                    if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Cam.CFrame.LookVector end
+                    if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Cam.CFrame.RightVector end
+                    if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Cam.CFrame.RightVector end
+                    if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
+                    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
+                    if dir.Magnitude > 0 then root.Velocity = dir.Unit * C.FlySpeed else root.Velocity = Vector3.new(0,0,0) end
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== INFINITE JUMP ====================
+local function setupInfJump(char)
+    local h = char:WaitForChild("Humanoid")
+    h.StateChanged:Connect(function(_, newState)
+        if C.InfJump and newState == Enum.HumanoidStateType.Freefall then
+            task.wait(0.1)
+            if C.InfJump then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end
+    end)
+end
+if LP.Character then setupInfJump(LP.Character) end
+LP.CharacterAdded:Connect(setupInfJump)
+
+-- ==================== FREEZE BOT/NPC ====================
+task.spawn(function()
+    while task.wait(0.5) do
+        if C.FreezeBot then
+            for _, obj in pairs(workspace:GetChildren()) do
+                pcall(function()
+                    if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(obj) then
+                        local h = obj:FindFirstChildOfClass("Humanoid")
+                        if h then h.WalkSpeed = 0; h.JumpPower = 0 end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- ==================== NOTIFIKASI ====================
+Library:Notify("[By-pass] V5.3 Loaded! All Toggle Fixed!", 5)
+
+print("[By-pass] Bypass Gamepass V5.3 - All Toggle Features Fixed!")
