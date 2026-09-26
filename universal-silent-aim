@@ -1,0 +1,698 @@
+--[[
+    RENXX HUB | Silent Aim + ESP
+    By: RENXX
+    Library: Rayfield
+    V1: RemoteEvent (FireServer) + Hybrid Prediction
+    V2: RemoteFunction (InvokeServer) + Velocity Prediction
+    Visual: Full ESP (Line, Name, Health, Skeleton, Distance, Box)
+]]
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- ==================== SERVICES ====================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local LP = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+local hasHook = pcall(function() return hookmetamethod and getrawmetatable and setreadonly end)
+local hasDrawing = pcall(function() local d = Drawing.new("Text") d:Remove() end)
+
+-- ==================== CONFIG ====================
+local C = {
+    -- V1 (RemoteEvent + Hybrid)
+    V1_SilentAim = false,
+    V1_POV = 90,
+    V1_Radius = 500,
+    V1_ShowPOV = false,
+    V1_POVColor = Color3.fromRGB(0, 255, 100),
+    V1_TeamCheck = true,
+    V1_WallCheck = true,
+    V1_AimPart = "Head",
+    V1_PingBuffer = 0.05,
+    -- V2 (RemoteFunction + Velocity)
+    V2_SilentAim = false,
+    V2_POV = 90,
+    V2_Radius = 500,
+    V2_ShowPOV = false,
+    V2_POVColor = Color3.fromRGB(0, 150, 255),
+    V2_TeamCheck = true,
+    V2_WallCheck = true,
+    V2_AimPart = "Head",
+    -- Visual ESP
+    ESP_Line = false,
+    ESP_Name = false,
+    ESP_Health = false,
+    ESP_Skeleton = false,
+    ESP_Distance = false,
+    ESP_Box = false,
+    ESP_TeamColor = Color3.fromRGB(0, 255, 0),
+    ESP_EnemyColor = Color3.fromRGB(255, 0, 0),
+    ESP_BotColor = Color3.fromRGB(255, 255, 0),
+    ESP_TeamCheck = true,
+}
+
+-- ==================== HELPER ====================
+local function fovToRadius(fovDeg)
+    return math.tan(math.rad(fovDeg / 2)) * (Cam.ViewportSize.Y / 2)
+end
+
+local function isSameTeam(p, useCheck)
+    if not useCheck or not LP.Team or not p.Team then return false end
+    return p.Team == LP.Team
+end
+
+local function isVisible(part)
+    if not part then return false end
+    local origin = Cam.CFrame.Position
+    local direction = (part.Position - origin)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local ignore = {}
+    if LP.Character then table.insert(ignore, LP.Character) end
+    table.insert(ignore, Cam)
+    params.FilterDescendantsInstances = ignore
+    local result = workspace:Raycast(origin, direction, params)
+    if not result then return true end
+    return result.Instance == part or result.Instance:IsDescendantOf(part.Parent)
+end
+
+local function getPingInSeconds()
+    local ping = 0
+    pcall(function()
+        ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+    end)
+    return (ping / 1000) / 2
+end
+
+local function getClosestTarget(fovRange, radiusRange, teamCheck, wallCheck, aimPart)
+    local closest, shortest = nil, math.huge
+    local center = Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+    local fovRadius = fovToRadius(fovRange)
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            if not isSameTeam(p, teamCheck) then
+                local part = p.Character:FindFirstChild(aimPart)
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if part and hum and hum.Health > 0 then
+                    local dist3D = (part.Position - Cam.CFrame.Position).Magnitude
+                    if dist3D <= radiusRange then
+                        local sp, on = Cam:WorldToViewportPoint(part.Position)
+                        if on then
+                            local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                            if d <= fovRadius and d < shortest then
+                                if isVisible(part) or not wallCheck then
+                                    shortest = d
+                                    closest = p
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- ==================== TARGETS ====================
+local v1Target = nil
+local v2Target = nil
+
+-- ==================== WINDOW ====================
+local Window = Rayfield:CreateWindow({
+    Name = "RENXX HUB | Silent Aim + ESP",
+    LoadingTitle = "Loading Silent Aim...",
+    LoadingSubtitle = "By RENXX",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false,
+})
+
+-- ==================== TAB V1 (RemoteEvent) ====================
+local V1Tab = Window:CreateTab("SILENT-AIM", 4483362458)
+
+V1Tab:CreateSection("Silent Aim V1 - RemoteEvent (Hybrid)")
+
+V1Tab:CreateToggle({
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        C.V1_SilentAim = v
+        if v then
+            Rayfield:Notify({Title="Silent Aim V1", Content="Hybrid Prediction Aktif!", Duration=3})
+        end
+    end,
+})
+
+V1Tab:CreateSlider({
+    Name = "POV AIM (0-360°)",
+    Range = {0, 360}, Increment = 1, Suffix = "°", CurrentValue = 90,
+    Callback = function(v) C.V1_POV = v end,
+})
+
+V1Tab:CreateSlider({
+    Name = "Radius Range AIM (0-10000m)",
+    Range = {0, 10000}, Increment = 10, Suffix = "m", CurrentValue = 500,
+    Callback = function(v) C.V1_Radius = v end,
+})
+
+V1Tab:CreateSlider({
+    Name = "Ping Buffer (0.00-0.30s)",
+    Range = {0, 0.30}, Increment = 0.01, Suffix = "s", CurrentValue = 0.05,
+    Callback = function(v) C.V1_PingBuffer = v end,
+})
+
+V1Tab:CreateToggle({
+    Name = "Show POV AIM",
+    CurrentValue = false,
+    Callback = function(v) C.V1_ShowPOV = v end,
+})
+
+V1Tab:CreateColorPicker({
+    Name = "POV AIM Color",
+    Color = Color3.fromRGB(0, 255, 100),
+    Callback = function(c) C.V1_POVColor = c end,
+})
+
+V1Tab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(v) C.V1_TeamCheck = v end,
+})
+
+V1Tab:CreateToggle({
+    Name = "Wall Check",
+    CurrentValue = true,
+    Callback = function(v) C.V1_WallCheck = v end,
+})
+
+V1Tab:CreateDropdown({
+    Name = "Aim Part",
+    Options = {"Head","HumanoidRootPart","UpperTorso","LowerTorso"},
+    CurrentOption = "Head",
+    Callback = function(o)
+        if type(o) == "table" then C.V1_AimPart = o[1] else C.V1_AimPart = o end
+    end,
+})
+
+-- ==================== TAB V2 (RemoteFunction) ====================
+local V2Tab = Window:CreateTab("SILENT-AIM-V2", 4483362458)
+
+V2Tab:CreateSection("Silent Aim V2 - RemoteFunction (Velocity)")
+
+V2Tab:CreateToggle({
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        C.V2_SilentAim = v
+        if v then
+            Rayfield:Notify({Title="Silent Aim V2", Content="Velocity Prediction Aktif!", Duration=3})
+        end
+    end,
+})
+
+V2Tab:CreateSlider({
+    Name = "POV AIM (0-360°)",
+    Range = {0, 360}, Increment = 1, Suffix = "°", CurrentValue = 90,
+    Callback = function(v) C.V2_POV = v end,
+})
+
+V2Tab:CreateSlider({
+    Name = "Radius Range (0-1000m)",
+    Range = {0, 1000}, Increment = 1, Suffix = "m", CurrentValue = 500,
+    Callback = function(v) C.V2_Radius = v end,
+})
+
+V2Tab:CreateToggle({
+    Name = "Show POV AIM",
+    CurrentValue = false,
+    Callback = function(v) C.V2_ShowPOV = v end,
+})
+
+V2Tab:CreateColorPicker({
+    Name = "POV AIM Color",
+    Color = Color3.fromRGB(0, 150, 255),
+    Callback = function(c) C.V2_POVColor = c end,
+})
+
+V2Tab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(v) C.V2_TeamCheck = v end,
+})
+
+V2Tab:CreateToggle({
+    Name = "Wall Check",
+    CurrentValue = true,
+    Callback = function(v) C.V2_WallCheck = v end,
+})
+
+V2Tab:CreateDropdown({
+    Name = "Aim Part",
+    Options = {"Head","HumanoidRootPart","UpperTorso","LowerTorso"},
+    CurrentOption = "Head",
+    Callback = function(o)
+        if type(o) == "table" then C.V2_AimPart = o[1] else C.V2_AimPart = o end
+    end,
+})
+
+-- ==================== TAB VISUAL (ESP) ====================
+local VTab = Window:CreateTab("VISUAL", 4483362458)
+
+VTab:CreateSection("ESP Settings")
+
+VTab:CreateToggle({Name="ESP Line", CurrentValue=false, Callback=function(v) C.ESP_Line = v end})
+VTab:CreateToggle({Name="ESP Name", CurrentValue=false, Callback=function(v) C.ESP_Name = v end})
+VTab:CreateToggle({Name="ESP Health Bar", CurrentValue=false, Callback=function(v) C.ESP_Health = v end})
+VTab:CreateToggle({Name="ESP Skeleton", CurrentValue=false, Callback=function(v) C.ESP_Skeleton = v end})
+VTab:CreateToggle({Name="ESP Distance", CurrentValue=false, Callback=function(v) C.ESP_Distance = v end})
+VTab:CreateToggle({Name="ESP Box", CurrentValue=false, Callback=function(v) C.ESP_Box = v end})
+
+VTab:CreateSection("ESP Colors")
+
+VTab:CreateColorPicker({
+    Name = "ESP Team Color",
+    Color = Color3.fromRGB(0, 255, 0),
+    Callback = function(c) C.ESP_TeamColor = c end,
+})
+
+VTab:CreateColorPicker({
+    Name = "ESP Enemy Color",
+    Color = Color3.fromRGB(255, 0, 0),
+    Callback = function(c) C.ESP_EnemyColor = c end,
+})
+
+VTab:CreateColorPicker({
+    Name = "ESP BOT/NPC Color",
+    Color = Color3.fromRGB(255, 255, 0),
+    Callback = function(c) C.ESP_BotColor = c end,
+})
+
+VTab:CreateToggle({
+    Name = "ESP Team Check",
+    CurrentValue = true,
+    Callback = function(v) C.ESP_TeamCheck = v end,
+})
+
+-- ==================== POV CIRCLES ====================
+local povCircleV1, povCircleV2
+if hasDrawing then
+    povCircleV1 = Drawing.new("Circle")
+    povCircleV1.Visible = false; povCircleV1.Thickness = 2; povCircleV1.NumSides = 64
+    povCircleV1.Filled = false; povCircleV1.Transparency = 1
+
+    povCircleV2 = Drawing.new("Circle")
+    povCircleV2.Visible = false; povCircleV2.Thickness = 2; povCircleV2.NumSides = 64
+    povCircleV2.Filled = false; povCircleV2.Transparency = 1
+end
+
+-- ==================== ESP DRAWING MANAGER ====================
+-- Simpan drawing object per player
+local espDrawings = {} -- [player] = { line=, name=, hpBG=, hpBar=, dist=, box=, skeletonLines={} }
+
+local function createESPFor(player)
+    if not hasDrawing then return end
+    espDrawings[player] = {
+        line = Drawing.new("Line"),
+        name = Drawing.new("Text"),
+        hpBG = Drawing.new("Square"),
+        hpBar = Drawing.new("Square"),
+        dist = Drawing.new("Text"),
+        box = Drawing.new("Square"),
+        skeleton = {},
+    }
+    -- Skeleton parts (11 titik, 10 garis)
+    local parts = {"Head","UpperTorso","LowerTorso","LeftUpperArm","RightUpperArm","LeftLowerArm","RightLowerArm","LeftUpperLeg","RightUpperLeg","LeftLowerLeg","RightLowerLeg"}
+    for i = 1, 10 do
+        espDrawings[player].skeleton[i] = Drawing.new("Line")
+    end
+    -- Hide all dulu
+    local d = espDrawings[player]
+    d.line.Visible = false
+    d.name.Visible = false
+    d.hpBG.Visible = false
+    d.hpBar.Visible = false
+    d.dist.Visible = false
+    d.box.Visible = false
+    for _, s in pairs(d.skeleton) do s.Visible = false end
+end
+
+local function removeESPFor(player)
+    if espDrawings[player] then
+        local d = espDrawings[player]
+        pcall(function() d.line:Remove() end)
+        pcall(function() d.name:Remove() end)
+        pcall(function() d.hpBG:Remove() end)
+        pcall(function() d.hpBar:Remove() end)
+        pcall(function() d.dist:Remove() end)
+        pcall(function() d.box:Remove() end)
+        for _, s in pairs(d.skeleton) do pcall(function() s:Remove() end) end
+        espDrawings[player] = nil
+    end
+end
+
+local function hideESPFor(player)
+    if espDrawings[player] then
+        local d = espDrawings[player]
+        d.line.Visible = false
+        d.name.Visible = false
+        d.hpBG.Visible = false
+        d.hpBar.Visible = false
+        d.dist.Visible = false
+        d.box.Visible = false
+        for _, s in pairs(d.skeleton) do s.Visible = false end
+    end
+end
+
+-- Setup ESP buat player yang ada & player baru
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= LP then createESPFor(p) end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    if p ~= LP then createESPFor(p) end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    removeESPFor(p)
+end)
+
+-- ==================== RENDER LOOP ====================
+RunService.RenderStepped:Connect(function()
+    -- POV Circle V1
+    if povCircleV1 then
+        if C.V1_ShowPOV then
+            povCircleV1.Visible = true
+            povCircleV1.Position = Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+            povCircleV1.Radius = fovToRadius(C.V1_POV)
+            povCircleV1.Color = C.V1_POVColor
+        else povCircleV1.Visible = false end
+    end
+
+    -- POV Circle V2
+    if povCircleV2 then
+        if C.V2_ShowPOV then
+            povCircleV2.Visible = true
+            povCircleV2.Position = Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+            povCircleV2.Radius = fovToRadius(C.V2_POV)
+            povCircleV2.Color = C.V2_POVColor
+        else povCircleV2.Visible = false end
+    end
+
+    -- Update targets
+    if C.V1_SilentAim then
+        v1Target = getClosestTarget(C.V1_POV, C.V1_Radius, C.V1_TeamCheck, C.V1_WallCheck, C.V1_AimPart)
+    else v1Target = nil end
+
+    if C.V2_SilentAim then
+        v2Target = getClosestTarget(C.V2_POV, C.V2_Radius, C.V2_TeamCheck, C.V2_WallCheck, C.V2_AimPart)
+    else v2Target = nil end
+
+    -- ============ ESP RENDER ============
+    if not hasDrawing then return end
+
+    local espActive = C.ESP_Line or C.ESP_Name or C.ESP_Health or C.ESP_Skeleton or C.ESP_Distance or C.ESP_Box
+    if not espActive then
+        -- Hide semua
+        for _, d in pairs(espDrawings) do
+            d.line.Visible = false; d.name.Visible = false
+            d.hpBG.Visible = false; d.hpBar.Visible = false
+            d.dist.Visible = false; d.box.Visible = false
+            for _, s in pairs(d.skeleton) do s.Visible = false end
+        end
+        return
+    end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local d = espDrawings[p]
+            if d then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                local head = p.Character:FindFirstChild("Head")
+
+                if hrp and hum and hum.Health > 0 and head then
+                    local sp, on = Cam:WorldToViewportPoint(hrp.Position)
+                    if on then
+                        local sameTeam = isSameTeam(p, C.ESP_TeamCheck)
+                        local color = sameTeam and C.ESP_TeamColor or C.ESP_EnemyColor
+
+                        -- ESP Line
+                        if C.ESP_Line then
+                            d.line.Visible = true
+                            d.line.From = Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y)
+                            d.line.To = Vector2.new(sp.X, sp.Y)
+                            d.line.Color = color
+                            d.line.Thickness = 1
+                        else d.line.Visible = false end
+
+                        -- ESP Name
+                        if C.ESP_Name then
+                            d.name.Visible = true
+                            d.name.Text = p.Name
+                            d.name.Position = Vector2.new(sp.X, sp.Y - 50)
+                            d.name.Color = color
+                            d.name.Size = 14
+                            d.name.Center = true
+                            d.name.Outline = true
+                        else d.name.Visible = false end
+
+                        -- ESP Health Bar
+                        if C.ESP_Health then
+                            local hpPercent = hum.Health / hum.MaxHealth
+                            d.hpBG.Visible = true
+                            d.hpBG.Size = Vector2.new(4, 40)
+                            d.hpBG.Position = Vector2.new(sp.X - 35, sp.Y - 20)
+                            d.hpBG.Color = Color3.fromRGB(0, 0, 0)
+                            d.hpBG.Filled = true
+                            d.hpBG.Thickness = 1
+
+                            d.hpBar.Visible = true
+                            d.hpBar.Size = Vector2.new(4, 40 * hpPercent)
+                            d.hpBar.Position = Vector2.new(sp.X - 35, sp.Y - 20 + (40 * (1 - hpPercent)))
+                            d.hpBar.Color = Color3.fromRGB(0, 255, 0):Lerp(Color3.fromRGB(255, 0, 0), 1 - hpPercent)
+                            d.hpBar.Filled = true
+                        else
+                            d.hpBG.Visible = false
+                            d.hpBar.Visible = false
+                        end
+
+                        -- ESP Distance
+                        if C.ESP_Distance then
+                            local dist = (hrp.Position - Cam.CFrame.Position).Magnitude
+                            d.dist.Visible = true
+                            d.dist.Text = math.floor(dist) .. "m"
+                            d.dist.Position = Vector2.new(sp.X, sp.Y + 25)
+                            d.dist.Color = color
+                            d.dist.Size = 12
+                            d.dist.Center = true
+                            d.dist.Outline = true
+                        else d.dist.Visible = false end
+
+                        -- ESP Box
+                        if C.ESP_Box then
+                            d.box.Visible = true
+                            d.box.Size = Vector2.new(50, 80)
+                            d.box.Position = Vector2.new(sp.X - 25, sp.Y - 40)
+                            d.box.Color = color
+                            d.box.Thickness = 1
+                            d.box.Filled = false
+                        else d.box.Visible = false end
+
+                        -- ESP Skeleton
+                        if C.ESP_Skeleton then
+                            local partsList = {"Head","UpperTorso","LowerTorso","LeftUpperArm","RightUpperArm","LeftLowerArm","RightLowerArm","LeftUpperLeg","RightUpperLeg","LeftLowerLeg","RightLowerLeg"}
+                            local positions = {}
+                            for _, name in pairs(partsList) do
+                                local part = p.Character:FindFirstChild(name)
+                                if part then
+                                    local psp, pon = Cam:WorldToViewportPoint(part.Position)
+                                    if pon then positions[name] = Vector2.new(psp.X, psp.Y) end
+                                end
+                            end
+                            local conns = {
+                                {"Head","UpperTorso"}, {"UpperTorso","LowerTorso"},
+                                {"UpperTorso","LeftUpperArm"}, {"LeftUpperArm","LeftLowerArm"},
+                                {"UpperTorso","RightUpperArm"}, {"RightUpperArm","RightLowerArm"},
+                                {"LowerTorso","LeftUpperLeg"}, {"LeftUpperLeg","LeftLowerLeg"},
+                                {"LowerTorso","RightUpperLeg"}, {"RightUpperLeg","RightLowerLeg"}
+                            }
+                            for i, conn in pairs(conns) do
+                                local sl = d.skeleton[i]
+                                if positions[conn[1]] and positions[conn[2]] then
+                                    sl.Visible = true
+                                    sl.From = positions[conn[1]]
+                                    sl.To = positions[conn[2]]
+                                    sl.Color = color
+                                    sl.Thickness = 1
+                                else
+                                    sl.Visible = false
+                                end
+                            end
+                        else
+                            for _, s in pairs(d.skeleton) do s.Visible = false end
+                        end
+                    else
+                        hideESPFor(p)
+                    end
+                else
+                    hideESPFor(p)
+                end
+            end
+        elseif p ~= LP then
+            hideESPFor(p)
+        end
+    end
+
+    -- ESP buat NPC/BOT
+    for _, obj in pairs(workspace:GetChildren()) do
+        pcall(function()
+            if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+                if not Players:GetPlayerFromCharacter(obj) then
+                    local hrp = obj:FindFirstChild("HumanoidRootPart")
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
+                    if hrp and hum and hum.Health > 0 then
+                        -- Cek apakah NPC ini punya drawing sendiri (pakai key obj)
+                        if not espDrawings[obj] then
+                            espDrawings[obj] = {
+                                line = Drawing.new("Line"),
+                                name = Drawing.new("Text"),
+                                hpBG = Drawing.new("Square"),
+                                hpBar = Drawing.new("Square"),
+                                dist = Drawing.new("Text"),
+                                box = Drawing.new("Square"),
+                                skeleton = {},
+                            }
+                            for i = 1, 10 do
+                                espDrawings[obj].skeleton[i] = Drawing.new("Line")
+                            end
+                        end
+                        local d = espDrawings[obj]
+                        local sp, on = Cam:WorldToViewportPoint(hrp.Position)
+                        if on then
+                            local color = C.ESP_BotColor
+                            if C.ESP_Line then
+                                d.line.Visible = true
+                                d.line.From = Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y)
+                                d.line.To = Vector2.new(sp.X, sp.Y)
+                                d.line.Color = color
+                                d.line.Thickness = 1
+                            else d.line.Visible = false end
+
+                            if C.ESP_Name then
+                                d.name.Visible = true
+                                d.name.Text = "[NPC] " .. obj.Name
+                                d.name.Position = Vector2.new(sp.X, sp.Y - 50)
+                                d.name.Color = color
+                                d.name.Size = 14
+                                d.name.Center = true
+                                d.name.Outline = true
+                            else d.name.Visible = false end
+
+                            if C.ESP_Distance then
+                                local dist = (hrp.Position - Cam.CFrame.Position).Magnitude
+                                d.dist.Visible = true
+                                d.dist.Text = math.floor(dist) .. "m"
+                                d.dist.Position = Vector2.new(sp.X, sp.Y + 25)
+                                d.dist.Color = color
+                                d.dist.Size = 12
+                                d.dist.Center = true
+                                d.dist.Outline = true
+                            else d.dist.Visible = false end
+
+                            if C.ESP_Box then
+                                d.box.Visible = true
+                                d.box.Size = Vector2.new(50, 80)
+                                d.box.Position = Vector2.new(sp.X - 25, sp.Y - 40)
+                                d.box.Color = color
+                                d.box.Thickness = 1
+                                d.box.Filled = false
+                            else d.box.Visible = false end
+                        else
+                            d.line.Visible = false; d.name.Visible = false
+                            d.dist.Visible = false; d.box.Visible = false
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ==================== HOOK ====================
+if hasHook then
+    local mt = getrawmetatable(game)
+    setreadonly(mt, false)
+    local oldNamecall = mt.__namecall
+    local newc = newcclosure or function(f) return f end
+
+    mt.__namecall = newc(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        if not method then return oldNamecall(self, ...) end
+
+        -- V1: RemoteEvent + Hybrid (Ping + Velocity)
+        if C.V1_SilentAim and v1Target and v1Target.Character and method == "FireServer" then
+            if typeof(self) == "Instance" and self:IsA("RemoteEvent") then
+                local part = v1Target.Character:FindFirstChild(C.V1_AimPart)
+                local hrp = v1Target.Character:FindFirstChild("HumanoidRootPart")
+                if part and hrp then
+                    local pingSec = getPingInSeconds()
+                    local totalDelay = pingSec + C.V1_PingBuffer
+                    local aimPos = part.Position + (hrp.Velocity * totalDelay)
+                    for i = 1, #args do
+                        if typeof(args[i]) == "Vector3" then args[i] = aimPos end
+                    end
+                end
+            end
+        end
+
+        -- V2: RemoteFunction + Velocity
+        if C.V2_SilentAim and v2Target and v2Target.Character and method == "InvokeServer" then
+            if typeof(self) == "Instance" and self:IsA("RemoteFunction") then
+                local part = v2Target.Character:FindFirstChild(C.V2_AimPart)
+                local hrp = v2Target.Character:FindFirstChild("HumanoidRootPart")
+                if part and hrp then
+                    local aimPos = part.Position + (hrp.Velocity * 0.15)
+                    for i = 1, #args do
+                        if typeof(args[i]) == "Vector3" then
+                            args[i] = aimPos
+                        elseif typeof(args[i]) == "CFrame" then
+                            args[i] = CFrame.new(aimPos)
+                        elseif typeof(args[i]) == "table" then
+                            for k, v in pairs(args[i]) do
+                                if typeof(v) == "Vector3" then args[i][k] = aimPos
+                                elseif typeof(v) == "CFrame" then args[i][k] = CFrame.new(aimPos)
+                                elseif k == "hitPart" or k == "target" then args[i][k] = part end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return oldNamecall(self, unpack(args))
+    end)
+
+    setreadonly(mt, true)
+end
+
+-- ==================== ANTI AFK ====================
+local VU = game:GetService("VirtualUser")
+LP.Idled:Connect(function()
+    VU:CaptureController()
+    VU:ClickButton2(Vector2.new())
+end)
+
+-- ==================== NOTIFIKASI ====================
+Rayfield:Notify({
+    Title = "RENXX Silent Aim + ESP",
+    Content = "All Features Loaded!",
+    Duration = 5,
+})
+
+print("RENXX Silent Aim + ESP - Loaded!")
